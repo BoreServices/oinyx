@@ -106,13 +106,20 @@ async def main() -> None:
     response = await client.chat("echo", "hello oinyx")
     print("chat:      ", response.content, response.usage.to_dict())
 
-    streamed = await client.chat("myprovider/echo-1", "streaming works", stream=True)
+    streamed = client.stream("myprovider/echo-1", "streaming works")
     async for chunk in streamed:
         print(chunk.delta, end="")
     print()
 
+
+def sync_demo() -> None:
+    """Blocking callers use chat_sync, but never from inside a running loop."""
+    client = OinyxClient()
     print("sync:      ", client.chat_sync("myprovider/echo-1", "blocking call").content)
+    chunks = client.chat_sync("myprovider/echo-1", "blocking stream", stream=True)
+    print("sync chunks:", [chunk.delta for chunk in chunks])
 
 
 if __name__ == "__main__":
     asyncio.run(main())
+    sync_demo()

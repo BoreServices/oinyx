@@ -155,6 +155,21 @@ class TestRetrySync:
         with pytest.raises(ProviderError, match="dead"):
             work()
 
+    def test_sync_on_retry_hook_is_invoked(self) -> None:
+        seen: list[int] = []
+        calls = 0
+
+        @retry(attempts=3, backoff=0, on_retry=lambda attempt, exc, delay: seen.append(attempt))
+        def work() -> str:
+            nonlocal calls
+            calls += 1
+            if calls < 3:
+                raise ProviderError("busy")
+            return "ok"
+
+        assert work() == "ok"
+        assert seen == [1, 2]
+
     def test_generator_functions_are_rejected(self) -> None:
         with pytest.raises(TypeError, match="cannot wrap generator"):
 

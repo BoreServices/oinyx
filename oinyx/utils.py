@@ -114,8 +114,8 @@ def retry(
                 "wrap the coroutine it awaits instead"
             )
         if inspect.iscoroutinefunction(func):
-            return async_wrapper
-        return sync_wrapper  # type: ignore[return-value]
+            return async_wrapper  # type: ignore[return-value]
+        return sync_wrapper
 
     return decorator
 
