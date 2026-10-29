@@ -1,0 +1,11 @@
+HTTP/2 500 
+server: ddos-guard
+set-cookie: __ddg8_=r4CzZzNuB3NS7Hj1; Domain=.down-cs.su; Path=/; Expires=Thu, 29-Oct-2026 17:51:55 GMT
+set-cookie: __ddg10_=1793295115; Domain=.down-cs.su; Path=/; Expires=Thu, 29-Oct-2026 17:51:55 GMT
+set-cookie: __ddg9_=103.180.113.228; Domain=.down-cs.su; Path=/; Expires=Thu, 29-Oct-2026 17:51:55 GMT
+content-security-policy: upgrade-insecure-requests;
+date: Thu, 29 Oct 2026 17:31:55 GMT
+x-powered-by: PHP/8.3.36
+content-length: 0
+content-type: text/html; charset=UTF-8
+

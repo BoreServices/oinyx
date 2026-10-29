@@ -1,0 +1,6 @@
+artifacts: dcs-diag-20261029-233129
+homepage:  0 bytes, ends_html=no
+spinner:   30606 bytes, 31 links
+verdict:   if homepage <20000 or no </html> => server-side truncation at template include.
+           if only /download/*/direct 500 => download backend dead; use edition page links
+           or wayback raw, sandbox any binary before running.

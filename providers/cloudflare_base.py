@@ -33,6 +33,8 @@ from oinyx import (
     RateLimitError,
 )
 
+from .http_utils import describe_error, error_payload
+
 CHALLENGE_MARKER = "just a moment"
 
 
@@ -157,7 +159,7 @@ class CloudflareBase(BaseProvider):
 
     def _error_for(self, response: httpx.Response, model: str | None) -> ProviderError:
         status = response.status_code
-        message, code = self._describe_error(self._error_payload(response))
+        message, code = describe_error(error_payload(response))
         detail = f"{message} [code={code}]"
         if status in (401, 403):
             return AuthenticationError(
@@ -173,30 +175,9 @@ class CloudflareBase(BaseProvider):
         return ProviderError(detail, provider=self.name, model=model, status_code=status)
 
     @staticmethod
-    def _error_payload(response: httpx.Response) -> Any:
-        try:
-            body = response.json()
-        except ValueError:
-            text = (response.text or "").strip()
-            return {"message": text[:200] or f"upstream returned HTTP {response.status_code}"}
-        if isinstance(body, dict) and "error" in body:
-            return body["error"]
-        return body if isinstance(body, dict) else {"message": str(body)[:200]}
-
-    @staticmethod
     def _describe_error(error: Any) -> tuple[str, str]:
         """Normalise string-or-object error payloads into ``(message, code)``."""
-        if isinstance(error, str):
-            return (error, "upstream_error")
-        if isinstance(error, dict):
-            keys = ("message", "error", "detail", "error_message")
-            message = next(
-                (str(error[key]) for key in keys if isinstance(error.get(key), str) and error[key]),
-                "upstream error",
-            )
-            code = error.get("code") or error.get("type") or "upstream_error"
-            return (message, str(code))
-        return (str(error)[:200], "upstream_error")
+        return describe_error(error)
 
     def __repr__(self) -> str:
         return f"<{type(self).__name__} name={self.name!r} endpoint={self.endpoint!r}>"

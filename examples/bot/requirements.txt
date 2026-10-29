@@ -1,0 +1,2 @@
+# The bot's own dependency; the adapters already require httpx.
+discord.py>=2.4

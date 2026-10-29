@@ -43,6 +43,8 @@ from oinyx import (
     retry,
 )
 
+from .http_utils import as_dict, as_list, describe_error, error_payload
+
 CHAT_URL = "https://api.kilo.ai/api/gateway/chat/completions"
 MODELS_URL = "https://api.kilo.ai/api/gateway/models"
 DEFAULT_MODEL = "kai/auto"
@@ -80,16 +82,6 @@ USER_AGENT = "oinyx-kai/0.1 (+https://github.com/example/oinyx)"
 
 class UpstreamError(ProviderError):
     """5xx or transport failure: the same request is worth retrying."""
-
-
-def as_dict(value: Any) -> dict[str, Any]:
-    """Return ``value`` when it is a JSON object, otherwise an empty dict."""
-    return value if isinstance(value, dict) else {}
-
-
-def as_list(value: Any) -> list[Any]:
-    """Return ``value`` when it is a JSON array, otherwise an empty list."""
-    return value if isinstance(value, list) else []
 
 
 @register_provider("kai")
@@ -382,29 +374,12 @@ class KaiProvider(BaseProvider):
     @staticmethod
     def _error_payload(response: httpx.Response) -> Any:
         """Extract the ``error`` value from a JSON body, or describe the raw text."""
-        try:
-            body = response.json()
-        except ValueError:
-            text = (response.text or "").strip()
-            return {"message": text[:200] or f"upstream returned HTTP {response.status_code}"}
-        if isinstance(body, dict) and "error" in body:
-            return body["error"]
-        return body if isinstance(body, dict) else {"message": str(body)[:200]}
+        return error_payload(response)
 
     @staticmethod
     def _describe_error(error: Any) -> tuple[str, str]:
         """Normalise string-or-object error payloads into ``(message, code)``."""
-        if isinstance(error, str):
-            return (error, "upstream_error")
-        if isinstance(error, dict):
-            keys = ("message", "error", "detail", "error_message")
-            message = next(
-                (str(error[key]) for key in keys if isinstance(error.get(key), str) and error[key]),
-                "upstream error",
-            )
-            code = error.get("code") or error.get("type") or error.get("status") or "upstream_error"
-            return (message, str(code))
-        return (str(error)[:200], "upstream_error")
+        return describe_error(error)
 
     @staticmethod
     def _is_free(item: dict[str, Any]) -> bool:
