@@ -16,7 +16,7 @@ by third-party packages::
 
 from __future__ import annotations
 
-from .base import BaseProvider
+from .base import BaseImageProvider, BaseProvider
 from .client import MessageLike, MessagesLike, OinyxClient
 from .exceptions import (
     AuthenticationError,
@@ -27,7 +27,7 @@ from .exceptions import (
     RoutingError,
     StreamInterruptedError,
 )
-from .models import ChatMessage, ChatResponse, StreamChunk, Usage
+from .models import ChatMessage, ChatResponse, ImageResponse, StreamChunk, Usage
 from .registry import ProviderRegistry, register_provider
 from .router import ModelRouter, RoutedModel
 from .utils import collect_stream, estimate_tokens, fill_usage, retry
@@ -36,9 +36,11 @@ __version__ = "0.1.0"
 
 __all__ = [
     "AuthenticationError",
+    "BaseImageProvider",
     "BaseProvider",
     "ChatMessage",
     "ChatResponse",
+    "ImageResponse",
     "MessageLike",
     "MessagesLike",
     "ModelRouter",

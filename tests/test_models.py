@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import pytest
 
-from oinyx.models import ChatMessage, ChatResponse, StreamChunk, Usage
+from oinyx.models import ChatMessage, ChatResponse, ImageResponse, StreamChunk, Usage
 
 
 class TestChatMessage:
@@ -90,6 +90,36 @@ class TestChatResponse:
 
     def test_from_dict_missing_usage(self) -> None:
         assert ChatResponse.from_dict({"id": "x"}).usage == Usage(0, 0, 0)
+
+
+class TestImageResponse:
+    def test_round_trip(self) -> None:
+        image = ImageResponse(
+            id="i",
+            model="m",
+            url="https://cdn/x.png",
+            b64="eA==",
+            mime_type="image/png",
+            revised_prompt="a fox",
+            width=4,
+            height=6,
+            raw={"status_code": 200},
+        )
+        assert ImageResponse.from_dict(image.to_dict()) == image
+
+    def test_defaults_and_emptiness(self) -> None:
+        image = ImageResponse()
+        assert image.has_image is False
+        assert image.raw == {}
+        assert image.to_dict()["url"] is None
+
+    @pytest.mark.parametrize("field", ["url", "b64"])
+    def test_either_payload_counts_as_an_image(self, field: str) -> None:
+        assert ImageResponse(**{field: "value"}).has_image is True
+
+    def test_from_dict_ignores_unknown_keys(self) -> None:
+        image = ImageResponse.from_dict({"url": "u", "unexpected": 1})
+        assert image == ImageResponse(url="u")
 
 
 class TestStreamChunk:

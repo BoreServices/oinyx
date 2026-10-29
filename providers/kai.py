@@ -82,6 +82,16 @@ class UpstreamError(ProviderError):
     """5xx or transport failure: the same request is worth retrying."""
 
 
+def as_dict(value: Any) -> dict[str, Any]:
+    """Return ``value`` when it is a JSON object, otherwise an empty dict."""
+    return value if isinstance(value, dict) else {}
+
+
+def as_list(value: Any) -> list[Any]:
+    """Return ``value`` when it is a JSON array, otherwise an empty list."""
+    return value if isinstance(value, list) else []
+
+
 @register_provider("kai")
 class KaiProvider(BaseProvider):
     """oinyx provider for the free models behind the Kilo Gateway."""
@@ -185,7 +195,7 @@ class KaiProvider(BaseProvider):
         finally:
             if owns_client:
                 await client.aclose()
-        items = data if isinstance(data, list) else (data or {}).get("data", [])
+        items = as_list(data) or as_list(as_dict(data).get("data"))
         return sorted(
             str(item["id"])
             for item in items
@@ -271,9 +281,9 @@ class KaiProvider(BaseProvider):
 
     def parse_response(self, body: dict[str, Any], *, requested: str) -> ChatResponse:
         """Convert a ``chat.completion`` payload into a :class:`ChatResponse`."""
-        choices = body.get("choices") or []
-        first = choices[0] if choices and isinstance(choices[0], dict) else {}
-        message = first.get("message") if isinstance(first.get("message"), dict) else {}
+        choices = as_list(body.get("choices"))
+        first = as_dict(choices[0]) if choices else {}
+        message = as_dict(first.get("message"))
         content = message.get("content")
         if not isinstance(content, str):
             content = self._extract_unusual_text(body)
@@ -332,9 +342,9 @@ class KaiProvider(BaseProvider):
                 raise ProviderError(
                     f"{message} [code={code}]", provider=self.name, model=model
                 )
-            choices = event.get("choices") or []
-            choice = choices[0] if choices and isinstance(choices[0], dict) else {}
-            delta = choice.get("delta") if isinstance(choice.get("delta"), dict) else {}
+            choices = as_list(event.get("choices"))
+            choice = as_dict(choices[0]) if choices else {}
+            delta = as_dict(choice.get("delta"))
             content = delta.get("content")
             reason = choice.get("finish_reason")
             if isinstance(content, str) and content:

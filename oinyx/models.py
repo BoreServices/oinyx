@@ -110,6 +110,46 @@ class ChatResponse:
 
 
 @dataclass
+class ImageResponse:
+    """A generated image, either as a URL or inline base64.
+
+    Exactly one of ``url`` / ``b64`` is usually populated; providers that hand
+    back raw bytes should base64-encode them into ``b64`` with a ``mime_type``.
+    """
+
+    id: str = ""
+    model: str = ""
+    url: str | None = None
+    b64: str | None = None
+    mime_type: str | None = None
+    revised_prompt: str | None = None
+    width: int | None = None
+    height: int | None = None
+    raw: dict[str, Any] = field(default_factory=dict)
+
+    @property
+    def has_image(self) -> bool:
+        return bool(self.url or self.b64)
+
+    def to_dict(self) -> dict[str, Any]:
+        return asdict(self)
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ImageResponse:
+        return cls(
+            id=str(data.get("id", "")),
+            model=str(data.get("model", "")),
+            url=data.get("url"),
+            b64=data.get("b64"),
+            mime_type=data.get("mime_type"),
+            revised_prompt=data.get("revised_prompt"),
+            width=data.get("width"),
+            height=data.get("height"),
+            raw=dict(data.get("raw") or {}),
+        )
+
+
+@dataclass
 class StreamChunk:
     """One incremental piece of a streamed response.
 

@@ -36,8 +36,8 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/example/oinyx"
-Issues = "https://github.com/example/oinyx/issues"
+Homepage = "https://github.com/BoreServices/oinyx"
+Issues = "https://github.com/BoreServices/oinyx/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["oinyx"]

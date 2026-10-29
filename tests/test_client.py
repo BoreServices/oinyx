@@ -14,7 +14,7 @@ from oinyx.exceptions import (
     RateLimitError,
     RoutingError,
 )
-from oinyx.models import ChatMessage, ChatResponse, StreamChunk
+from oinyx.models import ChatMessage, ChatResponse, ImageResponse, StreamChunk
 from oinyx.registry import ProviderRegistry
 from oinyx.router import ModelRouter
 from oinyx.utils import retry
@@ -179,6 +179,40 @@ class TestRetryIntegration:
         with pytest.raises(RateLimitError):
             await call()
         assert ProviderRegistry.get("mock").attempts == 2
+
+
+class TestImage:
+    @staticmethod
+    def register_image_provider() -> None:
+        from oinyx.base import BaseImageProvider
+
+        class Canvas(BaseImageProvider):
+            name = "canvas"
+
+            async def generate_image(self, model: str, prompt: str, **kwargs: Any) -> ImageResponse:
+                return ImageResponse(model=model, url=f"https://canvas/{prompt}", raw=dict(kwargs))
+
+        ProviderRegistry.register(Canvas)
+
+    async def test_image_call_is_routed_to_the_provider(self, client: OinyxClient) -> None:
+        self.register_image_provider()
+        image = await client.image("canvas/large", "fox", width=1024)
+        assert image.url == "https://canvas/fox"
+        assert image.model == "large"
+        assert image.raw == {"width": 1024}
+
+    async def test_text_providers_reject_image_calls(self, client: OinyxClient) -> None:
+        with pytest.raises(OinyxError, match="does not support image generation") as excinfo:
+            await client.image("mock/m", "fox")
+        assert excinfo.value.provider == "mock"
+
+    def test_image_sync_round_trip(self, client: OinyxClient) -> None:
+        self.register_image_provider()
+        assert client.image_sync("canvas/m", "cat").has_image is True
+
+    async def test_image_sync_inside_a_loop_is_rejected(self, client: OinyxClient) -> None:
+        with pytest.raises(OinyxError, match="running event loop"):
+            client.image_sync("canvas/m", "cat")
 
 
 class TestListModels:

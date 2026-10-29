@@ -5,10 +5,13 @@ A provider-agnostic Python client library for chat-completion AI models.
 `oinyx` ships **zero built-in providers**. It provides the unified call
 shape, the data models, the router, and a thread-safe plugin registry; backends
 are contributed by third-party packages that register themselves at import time.
+This repository keeps its own adapters in [`providers/`](providers) -- see
+[Bundled adapters](#bundled-adapters).
 
 - Pure Python, `>= 3.10`, **no runtime dependencies** in the core
 - Async-first with a sync wrapper
-- OpenAI-shaped dataclasses (`ChatMessage`, `ChatResponse`, `StreamChunk`, `Usage`)
+- OpenAI-shaped dataclasses (`ChatMessage`, `ChatResponse`, `StreamChunk`,
+  `Usage`, and `ImageResponse` for image providers)
 - Fully typed, `mypy --strict` clean, `py.typed` marker included
 
 ## Install
@@ -74,6 +77,81 @@ ProviderRegistry.configure("myprovider", {"api_key": "sk-"})
 
 Providers receive `config` as the sole constructor argument and may read any
 keys they like.
+
+## Image generation
+
+Providers that render images subclass `BaseImageProvider` instead, which
+implements `chat`/`stream` as clear errors so an image-only plugin can still be
+registered, and requires one method:
+
+```python
+from oinyx import BaseImageProvider, ImageResponse, register_provider
+
+
+@register_provider("myimagegen")
+class MyImageProvider(BaseImageProvider):
+    async def generate_image(self, model: str, prompt: str, **kwargs) -> ImageResponse:
+        return ImageResponse(model=model, url="https://cdn/result.png", width=1024, height=1024)
+```
+
+The client routes `image()` exactly like `chat()`:
+
+```python
+image = await client.image("myimagegen/sd3", "a red fox in snow", width=1024)
+image.url, image.b64, image.mime_type, image.has_image
+image = client.image_sync("myimagegen/sd3", "a red fox in snow")   # blocking variant
+```
+
+`ImageResponse` carries either a hosted `url` or inline `b64` (plus
+`mime_type`, `revised_prompt`, `width`, `height`, `raw`) and round-trips through
+`to_dict()` / `from_dict()` like the other models. Calling `image()` on a
+text-only provider raises `OinyxError`.
+
+## Bundled adapters
+
+`oinyx/` itself stays provider-free; the adapters live beside it in
+[`providers/`](providers) and register themselves on import:
+
+```python
+import providers            # registers fable5, kai, perchance, alyx
+from oinyx import OinyxClient
+
+reply = await OinyxClient().chat("kai/auto", "hello")
+image = await OinyxClient().image("alyx/ai-image-generator", "a red fox in snow")
+```
+
+| Name | Kind | Upstream | Notes |
+| --- | --- | --- | --- |
+| `fable5` | chat | `https://fable5.io/api/chat` | Free `openai/gpt-4o`. The endpoint answers with a **plain-text** body and reports the served model in the `x-chat-model` header; 1-32 messages, 8000 chars each. |
+| `kai` | chat | `https://api.kilo.ai/api/gateway/chat/completions` | Kilo Code's free models, unauthenticated OpenAI JSON + real SSE. Short aliases (`kai/auto`, `kai/nemo3-ultra`, ...) are mapped in `KAI_MODELS`; unknown ids pass through. `python -m providers.kai` re-verifies the table against the live catalog. |
+| `perchance` | chat | `https://text-generation.perchance.org/api/generate` | Instruction-shaped API: the conversation is flattened into one `instruction` string, the model name is the Perchance **generator** (`ai-chat`, `ai-code-generator`, ...). Streaming is emulated locally because the endpoint returns one body. |
+| `alyx` | image | `https://image-generation.perchance.org/api/generate` | Same request shape, image results. Extraction scans the body for the first URL, data URI, `b64_json`, or raw `image/*` bytes, since the field name differs per generator. |
+
+### Perchance is Cloudflare-gated
+
+Both Perchance endpoints answer a plain HTTP client with `403` +
+`cf-mitigated: challenge` and an HTML "Just a moment..." page; the challenge
+needs a real browser to execute its script. The providers therefore raise
+`CloudflareChallengeError` with actionable guidance rather than mis-parsing the
+challenge page, and support replaying a browser session:
+
+```python
+ProviderRegistry.configure(
+    "perchance",
+    {
+        # cf_clearance is bound to the user-agent that solved the challenge,
+        # so both must come from the same browser profile.
+        "cookies": {"cf_clearance": "...", "cf_bm": "..."},
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) ... Chrome/141.0.0.0 Safari/537.36",
+    },
+)
+```
+
+`cookies` also accepts a full `Cookie` header string. Other knobs: `timeout`,
+`attempts`, `backoff`, `headers`, `origin`, `referer`, plus `transport` /
+`client` for injecting an `httpx` client in tests. Because the API is gated, the
+`KNOWN_MODELS` lists in both modules are generator names to start from, not a
+verified catalog -- set `config["models"]` to the generators you actually use.
 
 ## Writing a provider plugin
 
@@ -209,12 +287,14 @@ OinyxError
 
 ```bash
 uv venv && uv pip install -e ".[dev]"
-.venv/bin/python -m pytest              # suite + coverage
-.venv/bin/python -m mypy                # strict, over oinyx/
+.venv/bin/python -m pytest              # suite + coverage (core is at 100%)
+.venv/bin/python -m pytest -m live      # opt in to tests that hit real upstreams
+.venv/bin/python -m mypy                # strict, over oinyx/ and providers/
 ```
 
 The suite exercises chat, streaming, routing, retries, and every error path
-against a `MockProvider` in `tests/conftest.py`, with no network access.
+against a `MockProvider` in `tests/conftest.py`, and the bundled adapters
+against `httpx.MockTransport`, with no network access by default.
 
 ## License
 

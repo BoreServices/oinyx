@@ -16,9 +16,9 @@ import asyncio
 from collections.abc import AsyncIterator, Sequence
 from typing import Any, Literal, overload
 
-from .base import BaseProvider
+from .base import BaseImageProvider, BaseProvider
 from .exceptions import OinyxError
-from .models import ChatMessage, ChatResponse, StreamChunk
+from .models import ChatMessage, ChatResponse, ImageResponse, StreamChunk
 from .registry import ProviderRegistry
 from .router import ModelRouter, RoutedModel
 from .utils import collect_stream
@@ -167,6 +167,35 @@ class OinyxClient:
         routed = self.route(model)
         provider = self._registry.get(routed.provider, self._config_for(routed.provider))
         return provider.stream(routed.model, self.normalize_messages(messages), **kwargs)
+
+    async def image(self, model: str, prompt: str, **kwargs: Any) -> ImageResponse:
+        """Generate an image with an image-capable provider.
+
+        Args:
+            model: ``"provider/model"`` string, routed exactly like :meth:`chat`.
+            prompt: Text description of the image.
+            **kwargs: Forwarded to the provider (``width``, ``height``, ...).
+
+        Raises:
+            ProviderError: if the resolved provider cannot generate images.
+        """
+        routed = self.route(model)
+        provider = self._registry.get(routed.provider, self._config_for(routed.provider))
+        if not isinstance(provider, BaseImageProvider):
+            raise OinyxError(
+                f"provider {routed.provider!r} does not support image generation",
+                provider=routed.provider,
+                model=routed.model,
+            )
+        return await provider.generate_image(routed.model, prompt, **kwargs)
+
+    def image_sync(self, model: str, prompt: str, **kwargs: Any) -> ImageResponse:
+        """Synchronous wrapper around :meth:`image`."""
+        if self._running_loop() is not None:
+            raise OinyxError(
+                "image_sync() cannot be used inside a running event loop; await image() instead"
+            )
+        return asyncio.run(self.image(model, prompt, **kwargs))
 
     def chat_sync(
         self,
