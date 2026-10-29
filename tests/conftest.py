@@ -89,14 +89,17 @@ class MockProvider(BaseProvider):
 
 @pytest.fixture(autouse=True)
 def isolated_registry() -> collections.abc.Iterator[None]:
-    """Snapshot and restore the global registry around every test."""
+    """Start every test from an empty registry and restore it afterwards.
+
+    Provider modules register themselves on import, so tests must not depend on
+    whatever happened to be imported first.
+    """
     classes = dict(ProviderRegistry._classes)
     configs = dict(ProviderRegistry._configs)
     instances = dict(ProviderRegistry._instances)
+    ProviderRegistry.clear()
     yield
-    ProviderRegistry._classes.clear()
-    ProviderRegistry._instances.clear()
-    ProviderRegistry._configs.clear()
+    ProviderRegistry.clear()
     ProviderRegistry._classes.update(classes)
     ProviderRegistry._configs.update(configs)
     ProviderRegistry._instances.update(instances)

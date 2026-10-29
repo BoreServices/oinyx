@@ -47,14 +47,17 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 pythonpath = ["."]
 testpaths = ["tests"]
-addopts = "-q --cov=oinyx --cov-report=term-missing"
+markers = [
+  "live: hits the real upstream APIs; opt in with -m live",
+]
+addopts = "-q --cov=oinyx --cov=providers --cov-report=term-missing -m 'not live'"
 
 [tool.coverage.run]
 branch = true
-source = ["oinyx"]
+source = ["oinyx", "providers"]
 
 [tool.mypy]
 python_version = "3.10"
 strict = true
 warn_unreachable = true
-files = ["oinyx"]
+files = ["oinyx", "providers"]

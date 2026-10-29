@@ -83,8 +83,9 @@ class Fable5Provider(BaseProvider):
             **dict(self.config.get("headers") or {}),
         }
         self._models: list[str] = list(self.config.get("models") or KNOWN_MODELS)
-        #: Supply an ``httpx.AsyncClient`` to share pooling, or to drive tests.
+        #: Supply an ``httpx.AsyncClient`` (or ``transport``) to share pooling or drive tests.
         self._injected: httpx.AsyncClient | None = self.config.get("client")
+        self._transport: httpx.AsyncBaseTransport | None = self.config.get("transport")
 
         self._send = retry(
             attempts=self.attempts,
@@ -230,22 +231,27 @@ class Fable5Provider(BaseProvider):
         """Return ``(owned, client)``; owned clients must be closed by us."""
         if self._injected is not None:
             return False, self._injected
-        return True, httpx.AsyncClient(timeout=self.timeout)
+        return True, httpx.AsyncClient(timeout=self.timeout, transport=self._transport)
 
     def _error_for(self, response: httpx.Response, model: str) -> ProviderError:
         """Map a bad response onto the oinyx exception hierarchy."""
         message, code = self._describe_error(response)
         status = response.status_code
-        common = {"provider": self.name, "model": model, "status_code": status}
         if status in (401, 403):
-            return AuthenticationError(message, **common)
+            return AuthenticationError(message, provider=self.name, model=model, status_code=status)
+        detail = f"{message} [code={code}]"
         if status == 429:
             retry_after = response.headers.get("retry-after")
             suffix = f" (retry after {retry_after}s)" if retry_after else ""
-            return RateLimitError(f"{message}{suffix} [code={code}]", **common)
+            return RateLimitError(
+                f"{message}{suffix} [code={code}]",
+                provider=self.name,
+                model=model,
+                status_code=status,
+            )
         if status >= 500:
-            return UpstreamError(f"{message} [code={code}]", **common)
-        return ProviderError(f"{message} [code={code}]", **common)
+            return UpstreamError(detail, provider=self.name, model=model, status_code=status)
+        return ProviderError(detail, provider=self.name, model=model, status_code=status)
 
     @staticmethod
     def _describe_error(response: httpx.Response) -> tuple[str, str]:
@@ -299,7 +305,7 @@ class Fable5Provider(BaseProvider):
                 for holder in ("message", "delta"):
                     part = first.get(holder)
                     if isinstance(part, dict) and isinstance(part.get("content"), str):
-                        return part["content"]
+                        return str(part["content"])
                 if isinstance(first.get("text"), str):
                     return str(first["text"])
         return body
